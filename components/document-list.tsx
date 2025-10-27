@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FileText, Download, Trash2, Search, X } from "lucide-react"
+import { FileText, Download, Trash2, Search, X, ExternalLink } from "lucide-react"
 
 interface Document {
   id: string
