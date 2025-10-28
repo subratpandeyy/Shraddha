@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { mongodbStorage } from "@/lib/mongodb-storage"
-import { uploadToCloudinary, getCloudinaryUrl } from "@/lib/cloudinary"
+import { uploadToCloudinary } from "@/lib/cloudinary"
 
 export async function GET() {
   try {
@@ -25,7 +25,6 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
-    const file = formData.get("file") as File
     const adminPassword = formData.get("password") as string
 
     const expectedPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
@@ -39,7 +38,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 })
     }
 
-    if (!file) {
+    // Allow multiple files appended under the same "file" key
+    const files = formData
+      .getAll("file")
+      .filter((f): f is File => typeof f === "object" && (f as any)?.arrayBuffer instanceof Function)
+
+    if (!files.length) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
@@ -51,38 +55,39 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    
-    // Upload to Cloudinary
-    const uploadResult = await uploadToCloudinary(buffer, file.name, 'documents')
-    
-    const id = `${Date.now()}-${file.name}`
+    // Upload all files (in parallel) and persist records
+    const results = await Promise.all(
+      files.map(async (file) => {
+        const bytes = await file.arrayBuffer()
+        const buffer = Buffer.from(bytes)
 
-    // Store the public_id exactly as Cloudinary returns it
-    const publicIdToStore = uploadResult.public_id
+        const uploadResult = await uploadToCloudinary(buffer, file.name, 'documents')
 
-    // IMPORTANT: Use Cloudinary's actual secure_url, not generated
-    // The secure_url is the correct URL that works
-    const cloudinaryUrl = uploadResult.secure_url
+        const id = `${Date.now()}-${file.name}`
+        const publicIdToStore = uploadResult.public_id
+        const cloudinaryUrl = uploadResult.secure_url
 
-    await mongodbStorage.save({
-      id,
-      name: file.name,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-      cloudinaryUrl: cloudinaryUrl, // Use Cloudinary's actual URL
-      cloudinaryPublicId: publicIdToStore,
-      fileType: uploadResult.format || 'unknown',
-      resourceType: uploadResult.resource_type,
-    })
+        await mongodbStorage.save({
+          id,
+          name: file.name,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+          cloudinaryUrl: cloudinaryUrl,
+          cloudinaryPublicId: publicIdToStore,
+          fileType: uploadResult.format || 'unknown',
+          resourceType: uploadResult.resource_type,
+        })
 
-    return NextResponse.json({
-      id,
-      name: file.name,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-    })
+        return {
+          id,
+          name: file.name,
+          size: file.size,
+          uploadedAt: new Date().toISOString(),
+        }
+      })
+    )
+
+    return NextResponse.json({ uploaded: results })
   } catch (error) {
     console.error("[v0] Upload error:", error instanceof Error ? error.message : error)
     return NextResponse.json({ error: "Upload failed" }, { status: 500 })

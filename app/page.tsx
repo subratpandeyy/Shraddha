@@ -2,9 +2,14 @@
 
 import { useState } from "react"
 import { DocumentList } from "@/components/document-list"
+import dynamic from "next/dynamic"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { FileText, Upload } from "lucide-react"
+import { Upload, Loader2 } from "lucide-react"
+import logo from "@/public/logo.png"
+import Image from "next/image"
+
+const ContactForm = dynamic(() => import("@/components/contact"), { ssr: false })
 
 export default function Home() {
   const [showAdmin, setShowAdmin] = useState(false)
@@ -12,6 +17,7 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authenticatedPassword, setAuthenticatedPassword] = useState("") // Store authenticated password separately
   const [refreshKey, setRefreshKey] = useState(0)
+  const [uploading, setUploading] = useState(false)
 
   const handleAdminLogin = () => {
     if (adminPassword === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
@@ -40,7 +46,8 @@ export default function Home() {
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-4">
-            <FileText className="h-8 w-8 text-primary" />
+            {/* <Smile className="h-8 w-8 text-primary"/> */}
+            <Image src={logo} alt="logo" className="h-10 w-10"/>
             <h1 className="text-4xl font-bold">TMKC</h1>
           </div>
           <div className="flex lg:flex-col">
@@ -99,23 +106,25 @@ export default function Home() {
 
             {isAuthenticated && (
               <div className="bg-card rounded-lg border p-6">
-                <h3 className="font-semibold mb-4">Upload Document</h3>
+                <h3 className="font-semibold mb-4">Upload Document(s)</h3>
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault()
-                    const formData = new FormData(e.currentTarget)
-                    const file = formData.get("file") as File
 
-                    if (!file || file.size === 0) {
-                      alert("Please select a file")
+                    const input = (e.currentTarget.querySelector('#file-upload') as HTMLInputElement) || undefined
+                    const files = input?.files
+
+                    if (!files || files.length === 0) {
+                      alert("Please select at least one file")
                       return
                     }
 
                     const uploadFormData = new FormData()
-                    uploadFormData.append("file", file)
+                    Array.from(files).forEach((file) => uploadFormData.append("file", file))
                     uploadFormData.append("password", authenticatedPassword)
 
                     try {
+                      setUploading(true)
                       const res = await fetch("/api/documents", {
                         method: "POST",
                         body: uploadFormData,
@@ -124,47 +133,70 @@ export default function Home() {
                       if (res.ok) {
                         ;(e.target as HTMLFormElement).reset()
                         handleUploadSuccess()
-                        alert("File uploaded successfully!")
+                        alert(files.length > 1 ? "Files uploaded successfully!" : "File uploaded successfully!")
                       } else {
                         const data = await res.json().catch(() => ({ error: res.statusText }))
                         alert(`Upload failed: ${data.error || "Unknown error"}`)
                       }
                     } catch (err: any) {
                       alert(`Upload failed: ${err.message}`)
+                    } finally {
+                      setUploading(false)
                     }
                   }}
                   className="space-y-3"
                 >
                   <div className="space-y-2">
                     <label htmlFor="file-upload" className="block text-sm font-medium mb-1">
-                      Choose File
+                      Choose File(s)
                     </label>
                     <Input 
                       id="file-upload"
                       type="file" 
                       name="file" 
-                      className="w-full cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                      multiple
+                      disabled={uploading}
+                      className="w-full cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 disabled:cursor-not-allowed"
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload Document
+                  <Button type="submit" className="w-full" disabled={uploading}>
+                    {uploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Document(s)
+                      </>
+                    )}
                   </Button>
                 </form>
               </div>
             )}
-            {/* // In your page */}
-            {/* <ContactForm 
-              onSubmit={async (data) => {
-                console.log(data);
-                await fetch('/api/contact', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
-                });
-              }}
-            /> */}
+            <div className="bg-card rounded-lg border p-4">
+              <h3 className="font-semibold mb-4 px-4">Couldn't find what you were looking for?</h3>
+              <ContactForm
+                onSubmit={async (data) => {
+                  const res = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                  })
+                  let payload: any = null
+                  try { payload = await res.json() } catch {}
+                  if (!res.ok) {
+                    throw new Error(payload?.error || 'Failed to send message')
+                  }
+                  // Optional: show Ethereal preview URL in dev
+                  if (payload?.previewUrl) {
+                    console.log('Email preview URL:', payload.previewUrl)
+                  }
+                }}
+              />
+            </div>
 
           </div>
 

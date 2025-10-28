@@ -6,18 +6,18 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { Upload } from "lucide-react"
+import { Upload, Loader2 } from "lucide-react"
 
 export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void }) {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<FileList | null>(null)
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!file || !password) {
-      setError("Please select a file and enter password")
+    if (!files || files.length === 0 || !password) {
+      setError("Please select at least one file and enter password")
       return
     }
 
@@ -26,7 +26,7 @@ export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void })
 
     try {
       const formData = new FormData()
-      formData.append("file", file)
+      Array.from(files).forEach((file) => formData.append("file", file))
       formData.append("password", password)
 
       const response = await fetch("/api/documents", {
@@ -35,11 +35,11 @@ export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void })
       })
 
       if (response.ok) {
-        setFile(null)
+        setFiles(null)
         setPassword("")
         onUploadSuccess()
       } else {
-        const data = await response.json()
+        const data = await response.json().catch(() => ({ error: "Upload failed" }))
         setError(data.error || "Upload failed")
       }
     } catch (err) {
@@ -53,8 +53,8 @@ export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void })
     <Card className="p-6">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2">Select Document</label>
-          <Input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} disabled={loading} />
+          <label className="block text-sm font-medium mb-2">Select Document(s)</label>
+          <Input type="file" multiple onChange={(e) => setFiles(e.target.files)} disabled={loading} />
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">Admin Password</label>
@@ -68,8 +68,17 @@ export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void })
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" disabled={loading} className="w-full">
-          <Upload className="h-4 w-4 mr-2" />
-          {loading ? "Uploading..." : "Upload Document"}
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Document(s)
+            </>
+          )}
         </Button>
       </form>
     </Card>

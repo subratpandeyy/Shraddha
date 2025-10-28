@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FileText, Download, Trash2, Search, X, ExternalLink } from "lucide-react"
+import { FileText, Download, Trash2, Search, X, ExternalLink, Loader2 } from "lucide-react"
 
 interface Document {
   id: string
@@ -34,6 +34,9 @@ export function DocumentList({
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [viewUrl, setViewUrl] = useState<string | null>(null)
   const [loadingViewUrl, setLoadingViewUrl] = useState(false)
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({})
+  const PAGE_SIZE = 10
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     fetchDocuments()
@@ -81,8 +84,22 @@ export function DocumentList({
     return filtered
   }, [documents, searchQuery, sortBy])
 
+  // Clamp current page when filters change
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredAndSortedDocuments.length / PAGE_SIZE))
+    if (page > totalPages) setPage(totalPages)
+  }, [filteredAndSortedDocuments.length, page])
+
+  const total = filteredAndSortedDocuments.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const startIndex = (page - 1) * PAGE_SIZE
+  const currentDocs = filteredAndSortedDocuments.slice(startIndex, startIndex + PAGE_SIZE)
+  const startDisplay = total === 0 ? 0 : startIndex + 1
+  const endDisplay = Math.min(startIndex + PAGE_SIZE, total)
+
   const handleDownload = async (doc: Document) => {
     try {
+      setDownloading((prev) => ({ ...prev, [doc.id]: true }))
       // Use the download API endpoint to get proper download URL
       const encodedId = encodeURIComponent(doc.id)
       const response = await fetch(`/api/documents/${encodedId}/download`)
@@ -112,12 +129,14 @@ export function DocumentList({
           window.open(data.downloadUrl, '_blank')
         }
       } else {
-        console.error('[v0] Download failed:', response.status)
+        console.error('Download failed:', response.status)
         alert('Failed to download document')
       }
     } catch (error) {
-      console.error('[v0] Download error:', error)
+      console.error('Download error:', error)
       alert('Failed to download document')
+    } finally {
+      setDownloading((prev) => ({ ...prev, [doc.id]: false }))
     }
   }
 
@@ -144,11 +163,11 @@ export function DocumentList({
         alert("Document deleted successfully")
       } else {
         const data = await response.json().catch(() => ({ error: "Unknown error" }))
-        console.error("[v0] Delete failed:", response.status, data)
+        console.error("Delete failed:", response.status, data)
         alert(`Failed to delete document: ${data.error || "Unknown error"}`)
       }
     } catch (error) {
-      console.error("[v0] Delete failed:", error)
+      console.error("Delete failed:", error)
       alert("Failed to delete document. Please check your connection.")
     }
   }
@@ -206,7 +225,7 @@ export function DocumentList({
           <Input
             placeholder="Search documents..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1) }}
             className="pl-10"
           />
           {searchQuery && (
@@ -220,13 +239,13 @@ export function DocumentList({
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <Button variant={sortBy === "name" ? "default" : "outline"} size="sm" onClick={() => setSortBy("name")}>
+          <Button variant={sortBy === "name" ? "default" : "outline"} size="sm" onClick={() => { setSortBy("name"); setPage(1) }}>
             Name
           </Button>
-          <Button variant={sortBy === "size" ? "default" : "outline"} size="sm" onClick={() => setSortBy("size")}>
+          <Button variant={sortBy === "size" ? "default" : "outline"} size="sm" onClick={() => { setSortBy("size"); setPage(1) }}>
             Size
           </Button>
-          <Button variant={sortBy === "date" ? "default" : "outline"} size="sm" onClick={() => setSortBy("date")}>
+          <Button variant={sortBy === "date" ? "default" : "outline"} size="sm" onClick={() => { setSortBy("date"); setPage(1) }}>
             Date
           </Button>
         </div>
@@ -243,15 +262,15 @@ export function DocumentList({
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredAndSortedDocuments.length} of {documents.length} documents
+            Showing {startDisplay}-{endDisplay} of {total} documents
           </p>
-          {filteredAndSortedDocuments.map((doc) => (
+          {currentDocs.map((doc) => (
             <Card key={doc.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition">
               <div className="flex items-center gap-3 flex-1">
                 <FileText className="h-5 w-5 text-primary" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium truncate">{doc.name}</p>
+                    <p className="font-medium">{doc.name}</p>
                     {!doc.cloudinaryUrl && (
                       <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
                         Old
@@ -273,8 +292,13 @@ export function DocumentList({
                     size="sm"
                     onClick={() => handleDownload(doc)}
                     title="Download document"
+                    disabled={!!downloading[doc.id]}
                   >
-                    <Download className="h-4 w-4" />
+                    {downloading[doc.id] ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
                   </Button>
                 ) : (
                   <div className="text-xs text-muted-foreground px-2">
@@ -294,6 +318,19 @@ export function DocumentList({
               </div>
             </Card>
           ))}
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                  Previous
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -386,8 +423,13 @@ export function DocumentList({
                         <Button 
                           variant="outline"
                           onClick={() => selectedDoc && handleDownload(selectedDoc)}
+                          disabled={selectedDoc ? !!downloading[selectedDoc.id] : false}
                         >
-                          <Download className="mr-2 h-4 w-4" />
+                          {selectedDoc && downloading[selectedDoc.id] ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="mr-2 h-4 w-4" />
+                          )}
                           Download Original
                         </Button>
                       </div>

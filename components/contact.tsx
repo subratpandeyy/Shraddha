@@ -22,6 +22,7 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
   const [errors, setErrors] = useState<Partial<FormData>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const validateForm = (): boolean => {
     const newErrors: Partial<FormData> = {};
@@ -50,6 +51,7 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
     if (!validateForm()) return;
     
     setIsSubmitting(true);
+    setSubmitError(null);
     
     try {
       if (onSubmit) {
@@ -60,8 +62,9 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
       setFormData({ name: '', email: '', message: '' });
       
       setTimeout(() => setSubmitSuccess(false), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting form:', error);
+      setSubmitError(error?.message || 'Failed to send message');
     } finally {
       setIsSubmitting(false);
     }
@@ -79,8 +82,8 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6">
-      <div className="bg-white rounded-lg shadow-lg p-8">
+    <div className="w-full max-w-2xl mx-auto">
+      <div className="bg-white rounded-lg shadow-lg p-5">
         <h2 className="text-3xl font-bold text-gray-800 mb-2">
           Get in Touch
         </h2>
@@ -93,6 +96,11 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
             <p className="text-green-800 font-medium">
               Message sent successfully! We'll be in touch soon.
             </p>
+          </div>
+        )}
+        {submitError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 font-medium">{submitError}</p>
           </div>
         )}
         
@@ -137,6 +145,7 @@ export default function ContactForm({ onSubmit }: ContactFormProps) {
                 errors.email ? 'border-red-500' : 'border-gray-300'
               }`}
               placeholder="your.email@example.com"
+              suppressHydrationWarning
             />
             {errors.email && (
               <p className="mt-1 text-sm text-red-600">{errors.email}</p>
