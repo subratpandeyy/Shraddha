@@ -35,17 +35,22 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background to-muted">
+    <main className="min-h-screen bg-linear-to-br from-background to-muted">
       <div className="container mx-auto px-4 py-12">
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-4">
             <FileText className="h-8 w-8 text-primary" />
-            <h1 className="text-4xl font-bold">Document Manager</h1>
+            <h1 className="text-4xl font-bold">TMKC</h1>
           </div>
+          <div className="flex lg:flex-col">
           <p className="text-muted-foreground text-lg">
-            Browse and download documents. Admin access available for uploads.
+            Your documents, one click away — download instantly!
           </p>
+          <p className="text-secondary-foreground text-lg">
+          Access Previous Year Questions Instantly
+          </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -149,7 +154,20 @@ export default function Home() {
                 </form>
               </div>
             )}
+            {/* // In your page */}
+            {/* <ContactForm 
+              onSubmit={async (data) => {
+                console.log(data);
+                await fetch('/api/contact', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(data),
+                });
+              }}
+            /> */}
+
           </div>
+
         </div>
       </div>
     </main>
