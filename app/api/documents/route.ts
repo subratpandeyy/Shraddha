@@ -47,6 +47,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
+    // Validate file sizes (10MB limit per file)
+    const maxSize = 10 * 1024 * 1024 // 10MB in bytes
+    const oversizedFiles = files.filter(file => file.size > maxSize)
+    if (oversizedFiles.length > 0) {
+      return NextResponse.json({ 
+        error: `File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 10MB per file.` 
+      }, { status: 400 })
+    }
+
     // Check Cloudinary credentials
     if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       console.error("[v0] Cloudinary credentials not configured")

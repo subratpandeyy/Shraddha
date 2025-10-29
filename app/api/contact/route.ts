@@ -6,7 +6,16 @@ export async function POST(req: Request) {
     const { name, email, message } = await req.json()
 
     if (!name || !email || !message) {
-      return NextResponse.json({ success: false, error: "Missing fields" }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
+    }
+
+    // Check if email credentials are configured
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error('[Contact] EMAIL_USER or EMAIL_PASS not configured')
+      return NextResponse.json({ 
+        success: false, 
+        error: "Email service not configured. Please contact the administrator." 
+      }, { status: 500 })
     }
 
     const transporter = nodemailer.createTransport({
@@ -59,8 +68,24 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error(error)
-    return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 })
+  } catch (error: any) {
+    console.error('[Contact] Error sending email:', error)
+    
+    // Provide more specific error messages
+    let errorMessage = "Failed to send message"
+    
+    if (error.code === 'EAUTH') {
+      errorMessage = "Email authentication failed. Please check your email credentials."
+    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+      errorMessage = "Unable to connect to email service. Please try again later."
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
+    return NextResponse.json({ 
+      success: false, 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+    }, { status: 500 })
   }
 }

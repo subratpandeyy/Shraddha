@@ -21,6 +21,14 @@ export function UploadForm({ onUploadSuccess }: { onUploadSuccess: () => void })
       return
     }
 
+    // Validate file sizes (10MB limit per file)
+    const maxSize = 10 * 1024 * 1024 // 10MB in bytes
+    const oversizedFiles = Array.from(files).filter(file => file.size > maxSize)
+    if (oversizedFiles.length > 0) {
+      setError(`File(s) too large: ${oversizedFiles.map(f => f.name).join(', ')}. Maximum size is 10MB per file.`)
+      return
+    }
+
     setLoading(true)
     setError("")
 
